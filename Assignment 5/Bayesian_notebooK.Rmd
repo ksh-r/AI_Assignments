@@ -1,0 +1,184 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(bnlearn)
+library(caret)
+library(e1071)
+```
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+
+```{r}
+#1 . Read the data from 2020_bn_nb_data.txt file :-
+grades<-read.table('D:/6th sem/Artificial Intelligence/2020_bn_nb_data.txt', header = TRUE )
+head(grades)
+print("dimensions of data given :")
+print(dim(grades))
+
+```
+
+
+```{r}
+#2.Consider grades earned in each of the courses as random variables and learn the dependencies between courses.
+
+grades<-lapply(grades , as.factor)
+grades<-data.frame(grades)
+grades.net<-hc(grades[,-9],score="k2")
+plot(grades.net)
+print(grades.net)
+```
+
+
+```{r}
+#3. Using the data, learn the CPTs for each course node.
+
+dag = model2network("[IT161][IT101|IT161][MA101|IT101][HS101|IT101][EC100|MA101][PH160|HS101][EC160|EC100][PH100|EC100]")
+grades.fit = bn.fit(dag, grades[,-9])
+print('Conditional Probability tables for each Nodes : ')
+print(grades.fit)
+```
+
+```{r}
+#4.What grade will a student get in PH100 if he earns DD in EC100, CC in IT101 and CD in MA101.
+
+g1<-cpquery(grades.fit, event =c(PH100=="AA"), evidence = (EC100=="DD" & IT101=="CC" & MA101=="CD") , n =1000)
+g2<-cpquery(grades.fit, event =c(PH100=="AB"), evidence = (EC100=="DD" & IT101=="CC" & MA101=="CD") , n =1000)
+g3<-cpquery(grades.fit, event =c(PH100=="BB"), evidence = (EC100=="DD" & IT101=="CC" & MA101=="CD") , n =1000)
+g4<-cpquery(grades.fit, event =c(PH100=="BC"), evidence = (EC100=="DD" & IT101=="CC" & MA101=="CD") , n =1000)
+g5<-cpquery(grades.fit, event =c(PH100=="CC"), evidence = (EC100=="DD" & IT101=="CC" & MA101=="CD") , n =1000)
+g6<-cpquery(grades.fit, event =c(PH100=="CD"), evidence = (EC100=="DD" & IT101=="CC" & MA101=="CD") , n =1000)
+g7<-cpquery(grades.fit, event =c(PH100=="DD"), evidence = (EC100=="DD" & IT101=="CC" & MA101=="CD") , n =1000)
+g8<-cpquery(grades.fit, event =c(PH100=="F"), evidence = (EC100=="DD" & IT101=="CC" & MA101=="CD") , n =1000)
+Ph100_grade = c(g1,g2,g3,g4,g5,g6,g7,g8)
+print("Probability for all grades PH100 : ")
+print( "AA          AB          BB         BC         CC         CD         DD          F")
+print(Ph100_grade)
+#p1 <-cpquery(grades.fit ,(PH100=="AA") , (EC100=="DD" & IT101="CC" & MA101="CD") , N=1000)
+```
+```{r}
+#5. Convert each grade to corresponding number so that I can fit a model into it
+convert_grades <- function(x) {
+  A <- factor(x, levels=c("AA", "AB",
+                     "BB", "BC",
+                     "CC", "CD",
+                     "DD",  "F",
+                     "y" , "n"))
+  values <- c(10, 9, 
+              8, 7, 
+              6, 5, 
+              4, 3,
+              TRUE , FALSE)
+  values[A]
+}
+
+num_grades <- grades
+num_grades[] <- lapply(num_grades, convert_grades)
+print(num_grades)
+
+
+```
+
+```{r}
+print(dim(grades))
+x_train = num_grades[1:165,-9]
+x_test = num_grades[166:232,-9]
+y_train = num_grades[1:165,9]
+y_test = num_grades[166:232,9]
+print(y_train)
+print(length(y_test))
+#print(dim(x_test))
+print(str(x_train))
+```
+```{r}
+#6 . split data into training and test data sets
+num_grades$QP <- factor(num_grades$QP, levels = c(0,1), labels = c("False", "True"))
+indxTrain <- createDataPartition(y = num_grades$QP,p = 0.70,list = FALSE)
+training <- num_grades[indxTrain,]
+testing <- num_grades[-indxTrain,] #Check dimensions of the split > prop.table(table(data$Outcome)) * 100
+print(dim(testing))
+print(head(training))
+X_Train = training[,-9]
+Y_Train = training$QP
+
+V= sample_n(num_grades, 165)
+XX_Train = V[,-9]
+YY_Train = V$QP
+
+
+```
+
+
+
+```{r}
+#7. Training the Model for given data
+model = train(XX_Train , YY_Train ,'nb',trControl=trainControl(method='cv',number=10))
+print(model)
+```
+```{r}
+# 8 .Get the confusion matrix to see accuracy value and other parameter values confusionMatrix(Predict, num_grades$QP )
+Predict <- predict(model,newdata = testing[,-9] )
+#print(Predict)
+cm <- table(testing$QP, Predict) 
+print("\nConfusion matrix = ")
+print(cm)
+n = sum(cm) # number of instances
+diag = diag(cm)
+acc = sum(diag)/n
+sprintf("Accurcy = %f",acc*100)
+
+
+```
+```{r}
+#9, Picking 20 random insances and predict
+Random_20 = sample_n(num_grades, 30)
+Predict_20 <- predict(model,newdata = Random_20[,-9] )
+cm <- table(Random_20$QP, Predict_20) 
+print(cm)
+accuracy <- mean(Random_20$QP == Predict_20)
+error <- mean(Random_20$QP != Predict_20)
+sprintf("Error = %f", error)
+sprintf("accuracy = %f",accuracy)
+```
+
+
+```{r}
+#10 repeat previos part on dependent data 
+#print(head(num_grades))
+num_grades$IT101 = (num_grades$EC100 + num_grades$EC160)/2
+num_grades$MA101 = (num_grades$IT161 + num_grades$PH100)/2
+num_grades$PH160 = num_grades$PH100
+#print(head(num_grades))
+indxTrain <- createDataPartition(y = num_grades$QP,p = 0.70,list = FALSE)
+training <- num_grades[indxTrain,]
+testing <- num_grades[-indxTrain,] #Check dimensions of the split > prop.table(table(data$Outcome)) * 100
+#print(dim(testing))
+#print(head(training))
+X_Train = training[,-9]
+Y_Train = training$QP
+model = train(XX_Train , YY_Train ,'nb',trControl=trainControl(method='cv',number=10))
+print(model)
+Predict <- predict(model,newdata = testing[,-9] )
+cm <- table(testing$QP, Predict) 
+print(cm)
+n = sum(cm) # number of instances
+diag = diag(cm)
+acc = sum(diag)/n
+sprintf("Accuracy = %f",acc*100)
+```
+
+
+
+
