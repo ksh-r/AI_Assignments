@@ -13,7 +13,7 @@
 - [Assignment 9](https://github.com/ksh-r/AI_Assignments/tree/main/Assignment%209)
 - Assignment 11 (No code)
 
-## Contributers:
+## Contributors:
 - [**Keshar Wakharkar - 201851155**](https://github.com/ksh-r)
 - [**Satyaprakash - 201851112**](https://github.com/satya1657)
 - [**Het Patel - 201851154**](https://github.com/phet2309)
